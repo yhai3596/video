@@ -4,3 +4,4 @@
 node_modules/
 # 处理后的配音由 tools/narrate.py 从 audio/raw/ 重新生成
 **/audio/L*.wav
+__pycache__/
