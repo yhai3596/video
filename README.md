@@ -4,7 +4,7 @@
 
 ## 项目
 
-- `mfg-ai/`：制造业 AI 落地，竖屏 9:16、71 秒、ListenHub 克隆音色。分镜与事实核查见 `mfg-ai/storyboard.md`，成片在 `mfg-ai/final/`（带背景音乐；另有无配乐版本）。
+- `mfg-ai/`：制造业 AI 落地，竖屏 9:16、65 秒、ListenHub 克隆音色 1.1 倍速。分镜与事实核查见 `mfg-ai/storyboard.md`，成片在 `mfg-ai/final/`（带背景音乐；另有无配乐版本）。
 - `hello-explainer/`：26 秒带 ListenHub 克隆音色配音和字幕的最小闭环样例，用来验证环境，不涉及真实选题。
 - `tools/narrate.py`：逐句配音 → 去首尾静音 → 量真实时长 → 生成字幕、`.srt` 和 `index.html`（由 `index.html.tpl` 套模板）。句内字幕切换点自动对齐到 0.5 秒内检测到的真实停顿。
 - `tools/finalize.py`：成片两遍 loudnorm 到 -16 LUFS；`--bgm 音乐文件` 混入背景音乐（统一到 -28 LUFS、首尾淡入淡出、人声侧链轻度避让）。
@@ -30,7 +30,13 @@ python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
 **云端直接生成**（推荐，配一次以后都不用碰 Mac）：
 环境设置的 **API credentials** 里加一条：Allowed websites `api.marswave.ai`，Header `Authorization` / Prefix `Bearer` / Value 填 Key。
 真实 Key 由平台代理在请求离开容器后加上，会话里看不到；narrate.py 在没有 `LISTENHUB_API_KEY` 时给 CLI 填占位值。
-已验证可用（2026-10-03，克隆音色一句 3 秒）。注意 CLI 用 Node 内置 fetch，必须带 `NODE_USE_ENV_PROXY=1` 才走代理，narrate.py 已自动设置；手动调 CLI 时要自己加。
+已验证可用（2026-10-03）。narrate.py 用 curl 直接调 `POST https://api.marswave.ai/openapi/v1/tts`，不走 listenhub CLI：
+CLI 0.0.22 的 `--speed` 校验有浮点 bug（1.1 会被误拒），且它用 Node 内置 fetch，需要 `NODE_USE_ENV_PROXY=1` 才走代理。
+手动调 CLI 的其他命令（如 `openapi music instrumental`）时记得加这个变量。
+
+**语速**：默认 1.1 倍（`narration.json` 的 `speed` 可覆盖）。配音按正常语速生成，再用 ffmpeg `atempo` 精确变速（不变调）。
+不用 ListenHub 的 speed 参数：实测 speed=1.1 只是生成提示，10 句整体只快 4.9%，单句 0.91–1.28 倍不等。
+语速不进 manifest 指纹，改语速不会重新生成配音、不扣积分。
 没有 API credentials 的套餐改为在环境变量里设 `LISTENHUB_API_KEY`。
 
 **Mac 兜底**：`python3 tools/narrate.py <项目> --mac-script` 生成 `audio/listenhub_tts.command`，

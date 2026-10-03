@@ -4,7 +4,7 @@
 用法：python3 tools/narrate.py <项目目录> [--force L03] [--mac-script]
 
 项目目录需要：
-  narration.json  {"engine": "listenhub|kokoro", "voice": "...", "speed": 1.0,
+  narration.json  {"engine": "listenhub|kokoro", "voice": "...", "speed": 1.1,  # speed 默认 1.1
                    "lines": [{"id": "L01", "scene": "s1", "tts": "读法文本", "sub": "字幕文本",
                               "marks": ["关键词"]}]}  # marks 可选
   index.html.tpl   含占位符：{{TOTAL}}、{{<scene>.start}}、{{<scene>.dur}}、{{<Lxx>.start}}、{{<Lxx>.dur}}、
@@ -33,7 +33,8 @@ GAP = 0.3       # 句间停顿
 TAIL = 1.0      # 最后一句后留白
 SUB_MAX = 18    # 单条字幕最多字数，超过按标点拆分
 HF = ["npx", "-y", "hyperframes@0.8.114"]
-LISTENHUB = ["npx", "-y", "@marswave/listenhub-cli@0.0.22"]
+LISTENHUB_TTS_URL = "https://api.marswave.ai/openapi/v1/tts"
+DEFAULT_SPEED = 1.1  # 默认语速：1.0 偏慢，统一后处理加速到 1.1 倍（narration.json 里写 speed 可覆盖）
 
 
 def run(cmd, **kw):
@@ -45,17 +46,18 @@ def duration(path):
     return float(out.stdout.strip())
 
 
-def fingerprint(engine, voice, speed, text):
-    return hashlib.sha1(f"{engine}|{voice}|{speed}|{text}".encode()).hexdigest()[:12]
+def fingerprint(engine, voice, text):
+    # 语速是后处理（atempo），不进指纹：改语速不需要重新生成配音
+    return hashlib.sha1(f"{engine}|{voice}|{text}".encode()).hexdigest()[:12]
 
 
 def file_hash(path):
     return hashlib.sha1(path.read_bytes()).hexdigest()[:12]
 
 
-def synth(line, raw_dir, manifest, engine, voice, speed, force):
+def synth(line, raw_dir, manifest, engine, voice, force):
     lid = line["id"]
-    fp = fingerprint(engine, voice, speed, line["tts"])
+    fp = fingerprint(engine, voice, line["tts"])
     existing = [p for p in (raw_dir / f"{lid}.mp3", raw_dir / f"{lid}.wav") if p.exists()]
     rec = manifest.get(lid)
     # 本脚本生成的文件：文件名和内容哈希都与 manifest 记录一致；其余视为手动放入（如 Mac 上生成后传回）
@@ -71,23 +73,23 @@ def synth(line, raw_dir, manifest, engine, voice, speed, force):
     ext = "mp3" if engine == "listenhub" else "wav"
     out, tmp = raw_dir / f"{lid}.{ext}", raw_dir / f"{lid}.tmp.{ext}"
     if engine == "listenhub":
-        # 环境里配了 API credentials 时，真实 Key 由平台代理在请求离开容器后加上；
-        # CLI 要求变量非空，所以没有 LISTENHUB_API_KEY 时填一个占位值
-        # NODE_USE_ENV_PROXY=1：CLI 用 Node 内置 fetch，默认不读 HTTPS_PROXY，不设的话请求绕过代理、Key 注入不了
-        env = {**os.environ, "NODE_USE_ENV_PROXY": "1",
-               "LISTENHUB_API_KEY": os.environ.get("LISTENHUB_API_KEY") or "injected-by-agent-proxy"}
-        cmd = LISTENHUB + ["openapi", "tts", "--text", line["tts"], "--voice", voice, "--output", str(tmp), "--format", "mp3"]
-        if speed != 1.0:
-            cmd += ["--speed", str(speed)]
-        try:
-            run(cmd, env=env)
-        except subprocess.CalledProcessError as e:
+        # 直接调 OpenAPI，不走 listenhub CLI（CLI 0.0.22 的 --speed 校验用浮点乘法，1.1 会被误拒）。
+        # 不传 speed：实测 ListenHub 的 speed=1.1 只是生成提示，10 句整体只快 4.9%，单句 0.91–1.28 倍不等。
+        # curl 默认走 HTTPS_PROXY；环境配了 API credentials 时 Key 由代理注入，否则用 LISTENHUB_API_KEY。
+        body = json.dumps({"input": line["tts"], "voice": voice, "response_format": "mp3"}, ensure_ascii=False)
+        cmd = ["curl", "-sS", "--fail-with-body", "--max-time", "180", "-X", "POST", LISTENHUB_TTS_URL,
+               "-H", "Content-Type: application/json", "--data-binary", "@-", "-o", str(tmp)]
+        if os.environ.get("LISTENHUB_API_KEY"):
+            cmd[1:1] = ["-H", f"Authorization: Bearer {os.environ['LISTENHUB_API_KEY']}"]
+        r = subprocess.run(cmd, input=body, capture_output=True, text=True)
+        if r.returncode != 0:
+            err = (tmp.read_text(errors="ignore") if tmp.exists() else "") or r.stderr
             tmp.unlink(missing_ok=True)
-            raise SystemExit(f"{lid}: ListenHub 调用失败。\n{(e.stderr or e.stdout).strip()[-800:]}\n"
+            raise SystemExit(f"{lid}: ListenHub 调用失败。\n{err.strip()[-800:]}\n"
                              "检查：环境的 API credentials 是否配了 api.marswave.ai，或设置 LISTENHUB_API_KEY；"
                              "云端不通时用 --mac-script 在 Mac 上生成。")
     else:
-        run(HF + ["tts", line["tts"], "-v", voice, "-s", str(speed), "-o", str(tmp)])
+        run(HF + ["tts", line["tts"], "-v", voice, "-o", str(tmp)])
     for p in (existing if force else ours):
         p.unlink(missing_ok=True)
     tmp.rename(out)
@@ -97,15 +99,19 @@ def synth(line, raw_dir, manifest, engine, voice, speed, force):
 
 def write_mac_script(proj, cfg):
     """生成 Mac 上双击运行的逐句配音脚本（已存在的文件跳过），产物放进 audio/raw/。"""
-    voice, speed = cfg["voice"], cfg.get("speed", 1.0)
+    voice = cfg["voice"]
     lines = [
         "#!/bin/bash",
-        "# 由 tools/narrate.py --mac-script 生成：逐句调用 ListenHub，已存在的跳过",
+        "# 由 tools/narrate.py --mac-script 生成：逐句调用 ListenHub OpenAPI，已存在的跳过",
+        "# 需要先 export LISTENHUB_API_KEY=你的Key。按正常语速生成，语速由 narrate.py 后处理",
         'cd "$(dirname "$0")/raw" || exit 1',
+        ': "${LISTENHUB_API_KEY:?先 export LISTENHUB_API_KEY}"',
         "gen() {",
         '  if [ -s "$1.mp3" ]; then echo "skip $1"; return; fi',
-        f'  listenhub openapi tts --voice {shlex.quote(voice)} --text "$2" --output "$1.mp3" --format mp3'
-        + (f" --speed {speed}" if speed != 1.0 else "") + ' && echo "done $1"',
+        f'  python3 -c \'import json,sys; print(json.dumps({{"input": sys.argv[1], "voice": {json.dumps(voice)}, '
+        '"response_format": "mp3"}, ensure_ascii=False))\' "$2" \\',
+        f'    | curl -sS --fail-with-body -X POST {LISTENHUB_TTS_URL} -H "Authorization: Bearer $LISTENHUB_API_KEY" '
+        '-H "Content-Type: application/json" --data-binary @- -o "$1.mp3" && echo "done $1"',
         "}",
     ]
     lines += [f"gen {line['id']} {shlex.quote(line['tts'])}" for line in cfg["lines"]]
@@ -116,11 +122,11 @@ def write_mac_script(proj, cfg):
     print(f"已生成 {path}")
 
 
-def clean(src, dst):
-    # 去掉首尾静音（尾部用 areverse 翻转后再去一次），再统一响度和采样率
+def clean(src, dst, speed):
+    # 去掉首尾静音（尾部用 areverse 翻转后再去一次），按 speed 精确变速（atempo 不变调），再统一响度和采样率
     af = ("silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,"
           "areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.08,areverse,"
-          "loudnorm=I=-16:TP=-1.5:LRA=11")
+          f"atempo={speed},loudnorm=I=-16:TP=-1.5:LRA=11")
     run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af", af, "-ar", "48000", "-ac", "1", str(dst)])
 
 
@@ -168,7 +174,7 @@ def main():
     cfg = json.loads((proj / "narration.json").read_text())
     engine = cfg.get("engine", "kokoro")
     voice = cfg.get("voice", "zf_xiaobei")
-    speed = cfg.get("speed", 1.0)
+    speed = cfg.get("speed", DEFAULT_SPEED)
     raw_dir = proj / "audio" / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     if args.mac_script:
@@ -181,10 +187,10 @@ def main():
     timeline, durations, media, srt = [], {}, [], []
     for line in cfg["lines"]:
         lid = line["id"]
-        src = synth(line, raw_dir, manifest, engine, voice, speed, lid in args.force)
+        src = synth(line, raw_dir, manifest, engine, voice, lid in args.force)
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
         dst = proj / "audio" / f"{lid}.wav"
-        clean(src, dst)
+        clean(src, dst, speed)
         d = round(duration(dst), 3)
         durations[lid] = d
 
