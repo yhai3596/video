@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
 """逐句配音 → 真实时长 → 字幕与画面时间轴。
 
-用法：python3 tools/narrate.py <项目目录> [--voice zf_xiaobei] [--force L03]
+用法：python3 tools/narrate.py <项目目录> [--force L03] [--mac-script]
 
 项目目录需要：
-  narration.json  {"voice": "...", "lines": [{"id": "L01", "scene": "s1", "tts": "读法文本", "sub": "字幕文本",
-                                              "marks": ["关键词"]}]}  # marks 可选
+  narration.json  {"engine": "listenhub|kokoro", "voice": "...", "speed": 1.0,
+                   "lines": [{"id": "L01", "scene": "s1", "tts": "读法文本", "sub": "字幕文本",
+                              "marks": ["关键词"]}]}  # marks 可选
   index.html.tpl   含占位符：{{TOTAL}}、{{<scene>.start}}、{{<scene>.dur}}、{{<Lxx>.start}}、{{<Lxx>.dur}}、
                   <!-- AUTO:MEDIA -->（替换为每句 <audio> 与字幕 clip）、/* AUTO:TIMING */（替换为 const T = {...}）
 
-音频来源：audio/raw/<id>.mp3|.wav 已存在就直接用（比如在 Mac 上用 ListenHub 生成后上传），
-否则用 HyperFrames 内置 Kokoro 生成。改了某句的 tts 文本，用 --force <id> 重新生成那一句。
+配音引擎：
+  listenhub  需要环境变量 LISTENHUB_API_KEY，且网络放行 api.marswave.ai；voice 填 speakerId
+  kokoro     HyperFrames 内置本地模型，中文只有 zf_xiaobei
+audio/raw/manifest.json 记录本脚本生成的每句用了哪个引擎、音色、语速和文本；任一变化自动重配那一句，
+--force <id> 强制重配。不是本脚本生成的 audio/raw/<id>.mp3|.wav 视为手动放入，优先使用，不会被删除。
+云端连不上 ListenHub 时，用 --mac-script 生成 audio/listenhub_tts.command，在 Mac 上双击逐句生成。
 
 产物：audio/<id>.wav（去首尾静音、响度 -16 LUFS）、durations.json、timeline.json、subtitles.srt、index.html
 """
 import argparse
+import hashlib
 import json
+import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -25,6 +33,7 @@ GAP = 0.3       # 句间停顿
 TAIL = 1.0      # 最后一句后留白
 SUB_MAX = 18    # 单条字幕最多字数，超过按标点拆分
 HF = ["npx", "-y", "hyperframes@0.8.114"]
+LISTENHUB = ["npx", "-y", "@marswave/listenhub-cli@0.0.22"]
 
 
 def run(cmd, **kw):
@@ -36,13 +45,64 @@ def duration(path):
     return float(out.stdout.strip())
 
 
-def synth(line, raw_dir, voice, speed, force):
-    existing = [p for p in (raw_dir / f"{line['id']}.mp3", raw_dir / f"{line['id']}.wav") if p.exists()]
-    if existing and not force:
-        return existing[0]
-    out = raw_dir / f"{line['id']}.wav"
-    run(HF + ["tts", line["tts"], "-v", voice, "-s", str(speed), "-o", str(out)])
+def fingerprint(engine, voice, speed, text):
+    return hashlib.sha1(f"{engine}|{voice}|{speed}|{text}".encode()).hexdigest()[:12]
+
+
+def file_hash(path):
+    return hashlib.sha1(path.read_bytes()).hexdigest()[:12]
+
+
+def synth(line, raw_dir, manifest, engine, voice, speed, force):
+    lid = line["id"]
+    fp = fingerprint(engine, voice, speed, line["tts"])
+    existing = [p for p in (raw_dir / f"{lid}.mp3", raw_dir / f"{lid}.wav") if p.exists()]
+    rec = manifest.get(lid)
+    # 本脚本生成的文件：文件名和内容哈希都与 manifest 记录一致；其余视为手动放入（如 Mac 上生成后传回）
+    ours = [p for p in existing if rec and p.name == rec["file"] and file_hash(p) == rec["sha"]]
+    manual = [p for p in existing if p not in ours]
+    if not force:
+        if manual:
+            print(f"  {lid}: 使用手动放入的 {manual[0].name}（改了文本不会自动重配，需要重新生成后替换）")
+            return manual[0]
+        if ours and rec["fp"] == fp:
+            return ours[0]
+    if engine == "listenhub" and not os.environ.get("LISTENHUB_API_KEY"):
+        raise SystemExit(f"{lid}: 缺少环境变量 LISTENHUB_API_KEY。云端没配好时用 --mac-script 在 Mac 上生成。")
+    for p in (existing if force else ours):
+        p.unlink()
+    if engine == "listenhub":
+        out = raw_dir / f"{lid}.mp3"
+        cmd = LISTENHUB + ["openapi", "tts", "--text", line["tts"], "--voice", voice, "--output", str(out), "--format", "mp3"]
+        if speed != 1.0:
+            cmd += ["--speed", str(speed)]
+        run(cmd)
+    else:
+        out = raw_dir / f"{lid}.wav"
+        run(HF + ["tts", line["tts"], "-v", voice, "-s", str(speed), "-o", str(out)])
+    manifest[lid] = {"fp": fp, "file": out.name, "sha": file_hash(out)}
     return out
+
+
+def write_mac_script(proj, cfg):
+    """生成 Mac 上双击运行的逐句配音脚本（已存在的文件跳过），产物放进 audio/raw/。"""
+    voice, speed = cfg["voice"], cfg.get("speed", 1.0)
+    lines = [
+        "#!/bin/bash",
+        "# 由 tools/narrate.py --mac-script 生成：逐句调用 ListenHub，已存在的跳过",
+        'cd "$(dirname "$0")/raw" || exit 1',
+        "gen() {",
+        '  if [ -s "$1.mp3" ]; then echo "skip $1"; return; fi',
+        f'  listenhub openapi tts --voice {shlex.quote(voice)} --text "$2" --output "$1.mp3" --format mp3'
+        + (f" --speed {speed}" if speed != 1.0 else "") + ' && echo "done $1"',
+        "}",
+    ]
+    lines += [f"gen {line['id']} {shlex.quote(line['tts'])}" for line in cfg["lines"]]
+    lines += ['echo "全部完成，把 audio/raw/ 下的 mp3 传回项目后重新运行 narrate.py"', "read -n 1 -s -r -p '按任意键关闭'"]
+    path = proj / "audio" / "listenhub_tts.command"
+    path.write_text("\n".join(lines) + "\n")
+    path.chmod(0o755)
+    print(f"已生成 {path}")
 
 
 def clean(src, dst):
@@ -80,21 +140,29 @@ def srt_time(t):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("project")
-    ap.add_argument("--voice")
     ap.add_argument("--force", action="append", default=[])
+    ap.add_argument("--mac-script", action="store_true")
     args = ap.parse_args()
 
     proj = Path(args.project).resolve()
     cfg = json.loads((proj / "narration.json").read_text())
-    voice = args.voice or cfg.get("voice", "zf_xiaobei")
+    engine = cfg.get("engine", "kokoro")
+    voice = cfg.get("voice", "zf_xiaobei")
+    speed = cfg.get("speed", 1.0)
     raw_dir = proj / "audio" / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
+    if args.mac_script:
+        write_mac_script(proj, cfg)
+        return
+    manifest_path = raw_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
 
     t = LEAD_IN
     timeline, durations, media, srt = [], {}, [], []
     for line in cfg["lines"]:
         lid = line["id"]
-        src = synth(line, raw_dir, voice, cfg.get("speed", 1.0), lid in args.force)
+        src = synth(line, raw_dir, manifest, engine, voice, speed, lid in args.force)
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
         dst = proj / "audio" / f"{lid}.wav"
         clean(src, dst)
         d = round(duration(dst), 3)
