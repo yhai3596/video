@@ -1,0 +1,24 @@
+{
+  "id": "6ac11f8776ab0c25ed001053",
+  "provider": "mureka",
+  "taskType": "INSTRUMENTAL",
+  "status": "success",
+  "params": {
+    "model": "auto",
+    "prompt": "Calm, modern corporate technology background music for a business explainer voiceover. Minimal electronic, soft synth pads, light steady pulse around 100 BPM, subtle piano, confident and forward-looking, no vocals, no strong lead melody, no dramatic drops, even dynamics so speech stays clear."
+  },
+  "tracks": [
+    {
+      "title": "",
+      "tags": "",
+      "duration": 189.75,
+      "audioUrl": "https://assets.marswaveai.cn/music/archived/6ac11f8776ab0c25ed001053/0.mp3",
+      "flacUrl": "https://assets.marswaveai.cn/music/archived/6ac11f8776ab0c25ed001053/0.flac",
+      "wavUrl": "https://assets.marswaveai.cn/music/archived/6ac11f8776ab0c25ed001053/0.wav",
+      "providerSongId": "164339266879490"
+    }
+  ],
+  "creditCost": 10,
+  "createdAt": 1791041415765,
+  "updatedAt": 1791041492281
+}
