@@ -181,16 +181,16 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="30.875"
+      data-duration="{{TOTAL}}"
       data-width="1920"
       data-height="1080"
     >
-      <section id="s1" class="clip" data-start="0.000" data-duration="8.583" data-track-index="0">
+      <section id="s1" class="clip" data-start="{{s1.start}}" data-duration="{{s1.dur}}" data-track-index="0">
         <h1 id="s1-title">代码即视频</h1>
         <p id="s1-sub">Claude 写 HTML，HyperFrames 渲染成 MP4</p>
       </section>
 
-      <section id="s2" class="clip" data-start="8.583" data-duration="9.440" data-track-index="0">
+      <section id="s2" class="clip" data-start="{{s2.start}}" data-duration="{{s2.dur}}" data-track-index="0">
         <h2 id="s2-head">一条最小闭环</h2>
         <div class="row">
           <div class="box" id="b1"><div class="lit"></div><span class="n">01</span><span class="t">分镜脚本</span></div>
@@ -203,32 +203,20 @@
         </div>
       </section>
 
-      <section id="s3" class="clip" data-start="18.023" data-duration="6.931" data-track-index="0">
+      <section id="s3" class="clip" data-start="{{s3.start}}" data-duration="{{s3.dur}}" data-track-index="0">
         <h2 id="s3-head">时间轴由配音时长驱动</h2>
         <div id="bars"></div>
       </section>
 
-      <section id="s4" class="clip" data-start="24.954" data-duration="5.921" data-track-index="0">
+      <section id="s4" class="clip" data-start="{{s4.start}}" data-duration="{{s4.dur}}" data-track-index="0">
         <p id="s4-text">跑通了 <span id="s4-check">✓</span></p>
         <p id="s4-sub">下一步：真实选题</p>
       </section>
 
-      <audio id="vo-L01" src="audio/L01.wav" data-start="0.400" data-duration="8.033"></audio>
-      <div id="sub-L01-0" class="clip sub" data-start="0.400" data-duration="4.016"><span>代码即视频　模型不直接生成画面</span></div>
-      <div id="sub-L01-1" class="clip sub" data-start="4.417" data-duration="4.016"><span>而是写代码　再把代码渲染成视频</span></div>
-      <audio id="vo-L02" src="audio/L02.wav" data-start="8.733" data-duration="9.140"></audio>
-      <div id="sub-L02-0" class="clip sub" data-start="8.733" data-duration="3.984"><span>整个流程分 4 步：先写分镜脚本</span></div>
-      <div id="sub-L02-1" class="clip sub" data-start="12.717" data-duration="3.515"><span>再写网页和动画　然后逐帧截图</span></div>
-      <div id="sub-L02-2" class="clip sub" data-start="16.232" data-duration="1.641"><span>最后合成视频</span></div>
-      <audio id="vo-L03" src="audio/L03.wav" data-start="18.173" data-duration="6.631"></audio>
-      <div id="sub-L03-0" class="clip sub" data-start="18.173" data-duration="3.039"><span>每一句配音的真实时长</span></div>
-      <div id="sub-L03-1" class="clip sub" data-start="21.212" data-duration="3.592"><span>决定了画面在什么时候切换</span></div>
-      <audio id="vo-L04" src="audio/L04.wav" data-start="25.104" data-duration="4.771"></audio>
-      <div id="sub-L04-0" class="clip sub" data-start="25.104" data-duration="3.013"><span>最小闭环跑通了　下一步</span></div>
-      <div id="sub-L04-1" class="clip sub" data-start="28.117" data-duration="1.758"><span>换成真实选题</span></div>
+      <!-- AUTO:MEDIA -->
     </div>
     <script>
-      const T = {"total": 30.875, "L01": {"start": 0.4, "dur": 8.033, "marks": []}, "L02": {"start": 8.733, "dur": 9.14, "marks": [10.709, 12.438, 14.415, 16.144]}, "L03": {"start": 18.173, "dur": 6.631, "marks": []}, "L04": {"start": 25.104, "dur": 4.771, "marks": []}};
+      /* AUTO:TIMING */
       const IDS = ["L01", "L02", "L03", "L04"];
 
       // s3 时长条：按真实时长比例设宽度（加载时一次性计算，确定性）
