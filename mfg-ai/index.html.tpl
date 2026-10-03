@@ -1,0 +1,675 @@
+<!doctype html>
+<!-- 模板：由 tools/narrate.py 生成 index.html，不要直接改 index.html -->
+<html lang="zh-CN" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "CJK";
+        src: local("Noto Sans CJK SC");
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: "CJK";
+        src: local("Noto Sans CJK SC Bold");
+        font-weight: 700;
+      }
+      :root {
+        --bg: #0b1220;
+        --panel: #101b30;
+        --line: #2b4470;
+        --ink: #e9eef7;
+        --mute: #9fb3cf;
+        --cool: #4da3ff;
+        --warm: #f2a541;
+        --good: #5fd39a;
+        --bad: #ff6b6b;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        font-family: "CJK", sans-serif;
+        color: var(--ink);
+        background-color: var(--bg);
+        background-image:
+          linear-gradient(rgba(90, 140, 220, 0.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(90, 140, 220, 0.07) 1px, transparent 1px);
+        background-size: 60px 60px;
+      }
+      /* 安全区：顶部 200px、底部 400px 留给平台 UI 和字幕，主体放在 y 260–1420 */
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .chip {
+        position: absolute;
+        top: 200px;
+        left: 80px;
+        font-size: 34px;
+        font-weight: 700;
+        color: var(--warm);
+        letter-spacing: 0.08em;
+      }
+      /* 内容组在标签（y≈250）和脚注（y=1360）之间垂直居中；s1 点阵较高，从顶部排 */
+      .grp {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 290px;
+        height: 1040px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #g1 {
+        justify-content: flex-start;
+      }
+      .grp > * {
+        flex-shrink: 0;
+      }
+      .head {
+        font-size: 60px;
+        font-weight: 700;
+        text-align: center;
+        line-height: 1.3;
+      }
+      .foot {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 1360px;
+        font-size: 26px;
+        line-height: 1.5;
+        color: var(--mute);
+      }
+      .big {
+        font-size: 240px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .cap {
+        font-size: 44px;
+        color: var(--mute);
+        margin-top: 12px;
+      }
+      .warm {
+        color: var(--warm);
+      }
+      .numbox {
+        position: relative;
+        width: 900px;
+        height: 340px;
+      }
+      .nb {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .cool {
+        color: var(--cool);
+      }
+
+      /* 字幕 */
+      .clip.sub {
+        z-index: 10;
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        padding-bottom: 360px;
+      }
+      .sub span {
+        max-width: 900px;
+        font-size: 46px;
+        line-height: 1.4;
+        padding: 10px 26px;
+        border-radius: 12px;
+        background: rgba(5, 10, 20, 0.78);
+        color: #ffffff;
+        text-align: center;
+      }
+
+      /* 点阵 */
+      .dots {
+        display: grid;
+        margin-top: 50px;
+      }
+      .dot {
+        position: relative;
+        border-radius: 50%;
+        background: #1c2a42;
+      }
+      .dot i {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        opacity: 0;
+      }
+      .dot i.c {
+        background: var(--cool);
+      }
+      .dot i.w {
+        background: var(--warm);
+      }
+      /* 10 行点阵要落在脚注（y=1360）上方：290 + 340 + 40 + 10×48 + 9×18 = 1312 */
+      #dots1 {
+        grid-template-columns: repeat(10, 48px);
+        gap: 18px;
+        margin-top: 40px;
+      }
+      #dots1 .dot {
+        width: 48px;
+        height: 48px;
+      }
+      #dots4 {
+        grid-template-columns: repeat(14, 38px);
+        gap: 12px;
+      }
+      #dots4 .dot {
+        width: 38px;
+        height: 38px;
+      }
+
+      /* 柱状对比 */
+      .bars {
+        display: flex;
+        gap: 120px;
+        align-items: flex-end;
+        margin-top: 60px;
+      }
+      .barcol {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+      }
+      .bar {
+        position: relative;
+        width: 220px;
+        height: 520px;
+        border-radius: 18px;
+        background: #16233a;
+        overflow: hidden;
+      }
+      .bar .fill {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 18px;
+        transform-origin: bottom center;
+      }
+      .barval {
+        font-size: 64px;
+        font-weight: 700;
+      }
+      .barlab {
+        font-size: 40px;
+        color: var(--mute);
+      }
+
+      /* 卡片 */
+      .cards {
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+        margin-top: 60px;
+        width: 900px;
+      }
+      .card {
+        display: flex;
+        align-items: center;
+        gap: 32px;
+        padding: 40px 44px;
+        border-radius: 24px;
+        background: var(--panel);
+        border: 3px solid var(--line);
+      }
+      .card .mark {
+        flex: none;
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 56px;
+        font-weight: 700;
+      }
+      .card .txt {
+        font-size: 46px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+      .card .txt small {
+        display: block;
+        font-size: 34px;
+        font-weight: 400;
+        color: var(--mute);
+        margin-top: 6px;
+      }
+      .card.no .mark {
+        background: rgba(255, 107, 107, 0.15);
+        color: var(--bad);
+      }
+      .card.yes {
+        border-color: var(--good);
+      }
+      .card.yes .mark {
+        background: rgba(95, 211, 154, 0.15);
+        color: var(--good);
+      }
+      .card.num .mark {
+        background: rgba(77, 163, 255, 0.15);
+        color: var(--cool);
+        font-size: 44px;
+      }
+
+      /* 横向对比条 */
+      .hbars {
+        width: 860px;
+        margin-top: 70px;
+        display: flex;
+        flex-direction: column;
+        gap: 34px;
+      }
+      .hrow .hl {
+        font-size: 38px;
+        color: var(--mute);
+        margin-bottom: 12px;
+      }
+      .htrack {
+        height: 84px;
+        border-radius: 14px;
+        background: #16233a;
+        overflow: hidden;
+      }
+      .hfill {
+        height: 100%;
+        border-radius: 14px;
+        transform-origin: left center;
+      }
+
+      /* 时间表 */
+      .miles {
+        width: 900px;
+        margin-top: 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 60px;
+      }
+      .mile .yr {
+        font-size: 96px;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .mile .ml {
+        font-size: 40px;
+        color: var(--mute);
+        margin: 14px 0 18px;
+      }
+
+      /* 曲线面板 */
+      .panel {
+        position: relative;
+        width: 920px;
+        height: 640px;
+        margin-top: 60px;
+        border-radius: 24px;
+        background: var(--panel);
+        border: 3px solid var(--line);
+        overflow: hidden;
+      }
+      .panel svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .panel .cover {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 840px;
+        background: var(--panel);
+        transform-origin: right center;
+      }
+      .plab {
+        position: absolute;
+        font-size: 36px;
+        font-weight: 700;
+      }
+
+      /* 结论 */
+      .concl {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 26px;
+        margin-top: 120px;
+      }
+      .concl p {
+        font-size: 64px;
+        font-weight: 700;
+        line-height: 1.3;
+        text-align: center;
+      }
+      .concl .dim {
+        color: var(--mute);
+        font-size: 56px;
+      }
+      .concl .hl {
+        font-size: 84px;
+        color: var(--warm);
+      }
+      .comment {
+        width: 900px;
+        margin-top: 80px;
+        padding: 40px 44px;
+        border-radius: 28px;
+        background: var(--panel);
+        border: 3px solid var(--cool);
+      }
+      .comment .who {
+        font-size: 34px;
+        color: var(--mute);
+        margin-bottom: 18px;
+      }
+      .comment .q {
+        font-size: 56px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+      .comment .cta {
+        margin-top: 28px;
+        font-size: 40px;
+        color: var(--cool);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="{{TOTAL}}"
+      data-width="1080"
+      data-height="1920"
+    >
+      <!-- s1 钩子 -->
+      <section id="s1" class="clip" data-start="{{s1.start}}" data-duration="{{s1.dur}}" data-track-index="0">
+        <div class="chip" id="c1">01 · 现状</div>
+        <div class="grp" id="g1">
+          <div class="numbox">
+            <div class="nb" id="nb89"><div class="big cool" id="n89">89%</div><div class="cap" id="cap1a">的企业在用 AI</div></div>
+            <div class="nb" id="nb6" data-layout-allow-overlap><div class="big warm" id="n6">6%</div><div class="cap" id="cap1b">对利润有明显贡献</div></div>
+          </div>
+          <div class="dots" id="dots1"></div>
+        </div>
+        <p class="foot" id="f1">来源：麦肯锡《2026 年 AI 现状》全球调研，1719 名受访者。6% 指息税前利润 ≥5% 来自 AI 且价值“显著”的企业。</p>
+      </section>
+
+      <!-- s2 赢家做对了什么 -->
+      <section id="s2" class="clip" data-start="{{s2.start}}" data-duration="{{s2.dur}}" data-track-index="0">
+        <div class="chip" id="c2">02 · 赢家做对了什么</div>
+        <div class="grp" id="g2a">
+          <p class="head">谁重新设计了工作流程？</p>
+          <div class="bars">
+            <div class="barcol" id="bc1">
+              <div class="barval cool" id="bv1">近 3/4</div>
+              <div class="bar"><div class="fill" id="bf1" style="height: 74%; background: var(--cool)"></div></div>
+              <div class="barlab">赢家（6%）</div>
+            </div>
+            <div class="barcol" id="bc2">
+              <div class="barval" id="bv2" style="color: var(--mute)">1/4</div>
+              <div class="bar"><div class="fill" id="bf2" style="height: 25%; background: #5b6b85"></div></div>
+              <div class="barlab">其他企业</div>
+            </div>
+          </div>
+        </div>
+        <div class="grp" id="g2b">
+          <p class="head">赢家的做法</p>
+          <div class="cards">
+            <div class="card no" id="k1"><div class="mark">×</div><div class="txt">把 AI 塞进老流程<small>流程不变，加个工具</small></div></div>
+            <div class="card yes" id="k2"><div class="mark">✓</div><div class="txt">围绕 AI 改流程<small>流程跟着 AI 重新设计</small></div></div>
+            <div class="card yes" id="k3"><div class="mark">✓</div><div class="txt">事先定好怎么算账<small>上线前就定衡量指标</small></div></div>
+          </div>
+        </div>
+        <p class="foot" id="f2">来源：麦肯锡《2026 年 AI 现状》。赢家 = 上文 6% 的高绩效企业。</p>
+      </section>
+
+      <!-- s3 国内工厂 -->
+      <section id="s3" class="clip" data-start="{{s3.start}}" data-duration="{{s3.dur}}" data-track-index="0">
+        <div class="chip" id="c3">03 · 国内工厂</div>
+        <div class="grp" id="g3a">
+          <div class="big cool" id="n500">500+</div>
+          <div class="cap" id="cap3">家卓越级智能工厂</div>
+          <div class="hbars">
+            <div class="hrow" id="hr1">
+              <div class="hl">改造前 · 不良品率</div>
+              <div class="htrack"><div class="hfill" id="hf1" style="width: 100%; background: #5b6b85"></div></div>
+            </div>
+            <div class="hrow" id="hr2">
+              <div class="hl">改造后 · <b class="warm" style="font-size: 52px">平均 −45%</b></div>
+              <div class="htrack"><div class="hfill" id="hf2" style="width: 55%; background: var(--warm)"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="grp" id="g3b">
+          <p class="head">拆开看，都是具体场景</p>
+          <div class="cards">
+            <div class="card num" id="m1"><div class="mark">01</div><div class="txt">在线智能检测</div></div>
+            <div class="card num" id="m2"><div class="mark">02</div><div class="txt">智能排产</div></div>
+            <div class="card num" id="m3"><div class="mark">03</div><div class="txt">质量追溯</div></div>
+          </div>
+        </div>
+        <p class="foot" id="f3a">来源：工信部智能工厂梯度培育行动（2026 年 6 月公布），为智能化改造整体成效。</p>
+        <p class="foot" id="f3b">来源：人民日报 2025-02-11，卓越级智能工厂建设的优秀场景。</p>
+      </section>
+
+      <!-- s4 为什么不能等 -->
+      <section id="s4" class="clip" data-start="{{s4.start}}" data-duration="{{s4.dur}}" data-track-index="0">
+        <div class="chip" id="c4">04 · 为什么不能等</div>
+        <div class="grp" id="g4a">
+          <p class="head">全球 <span class="cool">238</span> 座灯塔工厂<br />中国 <span class="warm">109</span> 座</p>
+          <div class="dots" id="dots4"></div>
+        </div>
+        <div class="grp" id="g4b">
+          <p class="head">国家时间表</p>
+          <div class="miles">
+            <div class="mile" id="ms1">
+              <div class="yr warm">2027</div>
+              <div class="ml">智能体等应用普及率 超 70%</div>
+              <div class="htrack"><div class="hfill" id="mf1" style="width: 70%; background: var(--warm)"></div></div>
+            </div>
+            <div class="mile" id="ms2">
+              <div class="yr cool">2030</div>
+              <div class="ml">超 90%</div>
+              <div class="htrack"><div class="hfill" id="mf2" style="width: 90%; background: var(--cool)"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="grp" id="g4c">
+          <p class="head">经验是用时间攒出来的</p>
+          <div class="panel">
+            <svg viewBox="0 0 920 640">
+              <line x1="70" y1="570" x2="870" y2="570" stroke="#2b4470" stroke-width="3" />
+              <line x1="70" y1="570" x2="70" y2="60" stroke="#2b4470" stroke-width="3" />
+              <path d="M70 560 C 300 520, 520 300, 860 110" fill="none" stroke="#4da3ff" stroke-width="10" stroke-linecap="round" />
+              <path d="M250 560 C 460 530, 640 400, 860 300" fill="none" stroke="#f2a541" stroke-width="10" stroke-linecap="round" />
+            </svg>
+            <div class="cover" id="cv4"></div>
+            <div class="plab cool" id="pl1" style="left: 600px; top: 120px">早起步</div>
+            <div class="plab warm" id="pl2" style="left: 700px; top: 440px">晚一年</div>
+            <div class="plab" id="pl3" style="left: 110px; top: 590px; font-size: 28px; color: var(--mute); font-weight: 400">时间 →</div>
+          </div>
+        </div>
+        <p class="foot" id="f4a">来源：世界经济论坛（2026 年 6 月），全球灯塔网络 238 座；中国 109 座据 21 财经统计。</p>
+        <p class="foot" id="f4b">来源：国发〔2025〕11 号，指新一代智能终端、智能体等应用普及率。</p>
+        <p class="foot" id="f4c">示意图，不代表具体数值。</p>
+      </section>
+
+      <!-- s5 结论 + CTA -->
+      <section id="s5" class="clip" data-start="{{s5.start}}" data-duration="{{s5.dur}}" data-track-index="0">
+        <div class="chip" id="c5">05 · 结论</div>
+        <div class="grp" id="g5a">
+          <div class="concl">
+            <p class="dim" id="q1">差距不在用不用 AI</p>
+            <p id="q2">而在会不会从一个</p>
+            <p class="hl" id="q3">算得清账的场景</p>
+            <p id="q4">起步</p>
+          </div>
+        </div>
+        <div class="grp" id="g5b">
+          <div class="concl" style="margin-top: 40px">
+            <p class="hl" style="font-size: 72px">算得清账的场景起步</p>
+          </div>
+          <div class="comment" id="cm">
+            <div class="who">评论区</div>
+            <div class="q">你厂里最头疼的<br />是哪道工序？</div>
+            <div class="cta" id="cta">留言告诉我，帮你判断先从哪下手</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUTO:MEDIA -->
+    </div>
+    <script>
+      /* AUTO:TIMING */
+
+      // 点阵：加载时一次性生成（确定性）
+      function makeDots(id, n, onCount, warmCount) {
+        const box = document.getElementById(id);
+        for (let i = 0; i < n; i++) {
+          const d = document.createElement("div");
+          d.className = "dot" + (i < onCount ? " on" : "") + (i < warmCount ? " win" : "");
+          d.innerHTML = '<i class="c"></i><i class="w"></i>';
+          box.appendChild(d);
+        }
+      }
+      makeDots("dots1", 100, 89, 6);
+      makeDots("dots4", 238, 0, 109);
+
+      const tl = gsap.timeline({ paused: true });
+      const S = (id) => T[id].start;
+      const E = (id) => T[id].start + T[id].dur;
+      const M = (id, i) => T[id].marks[i];
+      const pop = (sel, t, from = { y: 30 }) =>
+        tl.fromTo(sel, { opacity: 0, ...from }, { opacity: 1, y: 0, x: 0, scale: 1, duration: 0.45, ease: "power2.out" }, t);
+      const out = (sel, t) => tl.to(sel, { opacity: 0, duration: 0.3 }, t);
+      // 同一场景内切换小组：前一组淡出，后一组淡入
+      const hide = (sel) => tl.set(sel, { opacity: 0 }, 0);
+
+      // ---------- s1 ----------
+      hide("#nb6");
+      pop("#c1", 0.1, { x: -20 });
+      pop("#n89", S("L01"), { scale: 0.85 });
+      pop("#cap1a", S("L01") + 0.3);
+      tl.fromTo("#dots1 .dot", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, stagger: 0.006 }, S("L01") + 0.4);
+      tl.to("#dots1 .dot.on .c", { opacity: 1, duration: 0.2, stagger: 0.008 }, S("L01") + 0.9);
+      pop("#f1", S("L01") + 0.8, { y: 10 });
+      // 说到“但AI”：89% 换成 6%，只剩 6 个点亮暖色
+      const t1 = M("L01", 0);
+      out("#nb89", t1);
+      tl.set("#nb6", { opacity: 1 }, t1 + 0.15);
+      tl.to("#dots1 .dot.on:not(.win) .c", { opacity: 0.15, duration: 0.5 }, t1);
+      tl.to("#dots1 .dot.win .w", { opacity: 1, duration: 0.4, stagger: 0.08 }, t1 + 0.2);
+      pop("#n6", t1 + 0.2, { scale: 0.85 });
+      pop("#cap1b", t1 + 0.4);
+
+      // ---------- s2 ----------
+      hide("#g2b");
+      pop("#c2", S("L02") - 0.1, { x: -20 });
+      pop("#g2a .head", S("L02"));
+      tl.fromTo("#bf1", { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: "power2.out" }, M("L02", 0));
+      pop("#bv1", M("L02", 0) + 0.3);
+      tl.fromTo("#bf2", { scaleY: 0 }, { scaleY: 1, duration: 0.6, ease: "power2.out" }, M("L02", 1));
+      pop("#bv2", M("L02", 1) + 0.3);
+      pop("#f2", S("L02") + 0.5, { y: 10 });
+      out("#g2a", S("L03") - 0.25);
+      tl.set("#g2b", { opacity: 1 }, S("L03") - 0.05);
+      pop("#g2b .head", S("L03"));
+      pop("#k1", S("L03") + 0.2, { x: -40 });
+      pop("#k2", M("L03", 0), { x: 40 });
+      pop("#k3", M("L03", 1), { x: 40 });
+
+      // ---------- s3 ----------
+      hide(["#g3b", "#f3b"]);
+      pop("#c3", S("L04") - 0.1, { x: -20 });
+      pop("#n500", M("L04", 0), { scale: 0.85 });
+      pop("#cap3", M("L04", 0) + 0.3);
+      pop("#hr1", M("L04", 1) - 0.3);
+      tl.fromTo("#hf1", { scaleX: 0 }, { scaleX: 1, duration: 0.5 }, M("L04", 1) - 0.2);
+      pop("#hr2", M("L04", 1) + 0.4);
+      tl.fromTo("#hf2", { scaleX: 0 }, { scaleX: 1, duration: 0.6 }, M("L04", 1) + 0.5);
+      pop("#f3a", S("L04") + 0.5, { y: 10 });
+      out(["#g3a", "#f3a"], S("L05") - 0.25);
+      tl.set("#g3b", { opacity: 1 }, S("L05") - 0.05);
+      pop("#g3b .head", S("L05"));
+      pop("#m1", M("L05", 0) - 0.15, { x: -40 });
+      pop("#m2", M("L05", 1) - 0.15, { x: -40 });
+      pop("#m3", M("L05", 2) - 0.15, { x: -40 });
+      pop("#f3b", S("L05") + 0.4, { y: 10 });
+
+      // ---------- s4 ----------
+      hide(["#g4b", "#g4c", "#f4b", "#f4c"]);
+      pop("#c4", S("L06") - 0.1, { x: -20 });
+      pop("#g4a .head", S("L06"));
+      tl.fromTo("#dots4 .dot", { opacity: 0 }, { opacity: 1, duration: 0.2, stagger: 0.004 }, M("L06", 0));
+      tl.to("#dots4 .dot.win .w", { opacity: 1, duration: 0.2, stagger: 0.006 }, M("L06", 1));
+      pop("#f4a", S("L06") + 0.4, { y: 10 });
+      out(["#g4a", "#f4a"], S("L07") - 0.25);
+      tl.set("#g4b", { opacity: 1 }, S("L07") - 0.05);
+      pop("#g4b .head", S("L07"));
+      pop("#ms1", M("L07", 0) - 0.2);
+      tl.fromTo("#mf1", { scaleX: 0 }, { scaleX: 1, duration: 0.7 }, M("L07", 0));
+      pop("#ms2", M("L07", 0) + 1.2);
+      tl.fromTo("#mf2", { scaleX: 0 }, { scaleX: 1, duration: 0.7 }, M("L07", 0) + 1.4);
+      pop("#f4b", S("L07") + 0.4, { y: 10 });
+      out(["#g4b", "#f4b"], S("L08") - 0.25);
+      tl.set("#g4c", { opacity: 1 }, S("L08") - 0.05);
+      pop("#g4c .head", S("L08"));
+      hide(["#pl1", "#pl2"]);
+      tl.fromTo("#cv4", { scaleX: 1 }, { scaleX: 0, duration: 2.2, ease: "none" }, S("L08") + 0.2);
+      pop("#pl1", S("L08") + 1.6);
+      pop("#pl2", M("L08", 0));
+      pop("#f4c", S("L08") + 0.4, { y: 10 });
+
+      // ---------- s5 ----------
+      hide("#g5b");
+      pop("#c5", S("L09") - 0.1, { x: -20 });
+      pop("#q1", S("L09") + 0.2);
+      pop("#q2", M("L09", 0));
+      pop("#q3", M("L09", 1), { scale: 0.9 });
+      pop("#q4", M("L09", 1) + 0.5);
+      out("#g5a", S("L10") - 0.25);
+      tl.set("#g5b", { opacity: 1 }, S("L10") - 0.05);
+      pop("#g5b .concl", S("L10"));
+      pop("#cm", S("L10") + 0.3, { y: 50 });
+      pop("#cta", M("L10", 0));
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

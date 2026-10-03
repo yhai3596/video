@@ -4,8 +4,9 @@
 
 ## 项目
 
+- `mfg-ai/`：制造业 AI 落地，竖屏 9:16、71 秒、ListenHub 克隆音色。分镜与事实核查见 `mfg-ai/storyboard.md`，成片在 `mfg-ai/final/`。
 - `hello-explainer/`：26 秒带 ListenHub 克隆音色配音和字幕的最小闭环样例，用来验证环境，不涉及真实选题。
-- `tools/narrate.py`：逐句配音 → 去首尾静音 → 量真实时长 → 生成字幕、`.srt` 和 `index.html`（由 `index.html.tpl` 套模板）。
+- `tools/narrate.py`：逐句配音 → 去首尾静音 → 量真实时长 → 生成字幕、`.srt` 和 `index.html`（由 `index.html.tpl` 套模板）。句内字幕切换点自动对齐到 0.5 秒内检测到的真实停顿。
 - `tools/finalize.py`：成片两遍 loudnorm 到 -16 LUFS。
 - `tools/hf`：HyperFrames 包装，自动找到云端预装的 headless shell，不需要设 `HYPERFRAMES_BROWSER_PATH`。
 - `tools/cloud-setup.sh`：云端环境的 Setup script（装中文字体、预热 npx 缓存）。

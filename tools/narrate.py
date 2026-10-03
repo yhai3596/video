@@ -124,6 +124,15 @@ def clean(src, dst):
     run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af", af, "-ar", "48000", "-ac", "1", str(dst)])
 
 
+def pauses(path):
+    """检测句内停顿，返回各停顿中点（秒，相对本句开头）。"""
+    out = subprocess.run(["ffmpeg", "-i", str(path), "-af", "silencedetect=noise=-32dB:d=0.12", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    starts = [float(x) for x in re.findall(r"silence_start: ([\d.]+)", out)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", out)]
+    return [(a + b) / 2 for a, b in zip(starts, ends)]
+
+
 def split_sub(text):
     """按标点切成不超过 SUB_MAX 字的若干条，返回 [(文本, 字数权重)]。"""
     parts = [p for p in re.split(r"(?<=[，。！？；：,.!?;:])", text) if p.strip()]
@@ -179,13 +188,18 @@ def main():
         d = round(duration(dst), 3)
         durations[lid] = d
 
-        subs, cursor = [], t
+        # 字幕切换点：先按字数比例估算，再对齐到 0.5 秒内最近的真实停顿
         chunks = split_sub(line["sub"])
         total_w = sum(w for _, w in chunks)
-        for text, w in chunks:
-            sd = d * w / total_w
-            subs.append({"start": round(cursor, 3), "dur": round(sd, 3), "text": text})
-            cursor += sd
+        ps = pauses(dst)
+        bounds, acc = [0.0], 0.0
+        for _, w in chunks[:-1]:
+            acc += d * w / total_w
+            near = min(ps, key=lambda p: abs(p - acc), default=None)
+            bounds.append(near if near is not None and abs(near - acc) <= 0.5 and near > bounds[-1] else acc)
+        bounds.append(d)
+        subs = [{"start": round(t + a, 3), "dur": round(b - a, 3), "text": text}
+                for (text, _), a, b in zip(chunks, bounds, bounds[1:])]
         # marks：解说词里的关键词出现时刻，按字符位置比例估算，用来对齐画面动作
         marks = [round(t + d * line["tts"].index(k) / len(line["tts"]), 3) for k in line.get("marks", [])]
         timeline.append({"id": lid, "scene": line.get("scene"), "start": round(t, 3), "dur": d,
