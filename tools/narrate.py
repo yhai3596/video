@@ -73,7 +73,9 @@ def synth(line, raw_dir, manifest, engine, voice, speed, force):
     if engine == "listenhub":
         # 环境里配了 API credentials 时，真实 Key 由平台代理在请求离开容器后加上；
         # CLI 要求变量非空，所以没有 LISTENHUB_API_KEY 时填一个占位值
-        env = {**os.environ, "LISTENHUB_API_KEY": os.environ.get("LISTENHUB_API_KEY") or "injected-by-agent-proxy"}
+        # NODE_USE_ENV_PROXY=1：CLI 用 Node 内置 fetch，默认不读 HTTPS_PROXY，不设的话请求绕过代理、Key 注入不了
+        env = {**os.environ, "NODE_USE_ENV_PROXY": "1",
+               "LISTENHUB_API_KEY": os.environ.get("LISTENHUB_API_KEY") or "injected-by-agent-proxy"}
         cmd = LISTENHUB + ["openapi", "tts", "--text", line["tts"], "--voice", voice, "--output", str(tmp), "--format", "mp3"]
         if speed != 1.0:
             cmd += ["--speed", str(speed)]

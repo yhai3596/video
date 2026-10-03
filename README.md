@@ -28,6 +28,7 @@ python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
 **云端直接生成**（推荐，配一次以后都不用碰 Mac）：
 环境设置的 **API credentials** 里加一条：Allowed websites `api.marswave.ai`，Header `Authorization` / Prefix `Bearer` / Value 填 Key。
 真实 Key 由平台代理在请求离开容器后加上，会话里看不到；narrate.py 在没有 `LISTENHUB_API_KEY` 时给 CLI 填占位值。
+已验证可用（2026-10-03，克隆音色一句 3 秒）。注意 CLI 用 Node 内置 fetch，必须带 `NODE_USE_ENV_PROXY=1` 才走代理，narrate.py 已自动设置；手动调 CLI 时要自己加。
 没有 API credentials 的套餐改为在环境变量里设 `LISTENHUB_API_KEY`。
 
 **Mac 兜底**：`python3 tools/narrate.py <项目> --mac-script` 生成 `audio/listenhub_tts.command`，
