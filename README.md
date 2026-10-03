@@ -2,6 +2,8 @@
 
 用 Claude + HyperFrames 做知识解说视频（代码即视频：HTML + GSAP → 逐帧截图 → MP4）。
 
+**新会话从 `CLAUDE.md` 开始**：完整流程、环境要求、踩过的坑、命令速查都在那里，Claude Code 打开仓库会自动读取。
+
 ## 项目
 
 - `mfg-ai/`：制造业 AI 落地，竖屏 9:16、65 秒、ListenHub 克隆音色 1.1 倍速。分镜与事实核查见 `mfg-ai/storyboard.md`，成片在 `mfg-ai/final/`（带背景音乐；另有无配乐版本）。
@@ -10,7 +12,8 @@
 - `tools/finalize.py`：成片两遍 loudnorm 到 -16 LUFS；`--bgm 音乐文件` 混入背景音乐（统一到 -28 LUFS、首尾淡入淡出、人声侧链轻度避让）。
   ListenHub 生成的音乐下载地址在 `assets.marswaveai.cn`，环境网络要放行这个域名。
 - `tools/hf`：HyperFrames 包装，自动找到云端预装的 headless shell，不需要设 `HYPERFRAMES_BROWSER_PATH`。
-- `tools/cloud-setup.sh`：云端环境的 Setup script（装中文字体、预热 npx 缓存）。
+- `tools/cloud-setup.sh`：云端环境准备（装中文字体、预热 npx 缓存），由 `.claude/hooks/session-start.sh` 在每个新会话自动运行。
+- `tools/new-project.sh`：新建视频项目骨架（以 `mfg-ai` 的竖屏模板为起点）。
 
 ## 制作流程
 
