@@ -11,7 +11,7 @@
                   <!-- AUTO:MEDIA -->（替换为每句 <audio> 与字幕 clip）、/* AUTO:TIMING */（替换为 const T = {...}）
 
 配音引擎：
-  listenhub  需要环境变量 LISTENHUB_API_KEY，且网络放行 api.marswave.ai；voice 填 speakerId
+  listenhub  环境里配 API credentials（host: api.marswave.ai）或设置 LISTENHUB_API_KEY；voice 填 speakerId
   kokoro     HyperFrames 内置本地模型，中文只有 zf_xiaobei
 audio/raw/manifest.json 记录本脚本生成的每句用了哪个引擎、音色、语速和文本；任一变化自动重配那一句，
 --force <id> 强制重配。不是本脚本生成的 audio/raw/<id>.mp3|.wav 视为手动放入，优先使用，不会被删除。
@@ -67,19 +67,28 @@ def synth(line, raw_dir, manifest, engine, voice, speed, force):
             return manual[0]
         if ours and rec["fp"] == fp:
             return ours[0]
-    if engine == "listenhub" and not os.environ.get("LISTENHUB_API_KEY"):
-        raise SystemExit(f"{lid}: 缺少环境变量 LISTENHUB_API_KEY。云端没配好时用 --mac-script 在 Mac 上生成。")
-    for p in (existing if force else ours):
-        p.unlink()
+    # 先生成到临时文件，成功后再替换旧文件；调用失败时已有音频不受影响
+    ext = "mp3" if engine == "listenhub" else "wav"
+    out, tmp = raw_dir / f"{lid}.{ext}", raw_dir / f"{lid}.tmp.{ext}"
     if engine == "listenhub":
-        out = raw_dir / f"{lid}.mp3"
-        cmd = LISTENHUB + ["openapi", "tts", "--text", line["tts"], "--voice", voice, "--output", str(out), "--format", "mp3"]
+        # 环境里配了 API credentials 时，真实 Key 由平台代理在请求离开容器后加上；
+        # CLI 要求变量非空，所以没有 LISTENHUB_API_KEY 时填一个占位值
+        env = {**os.environ, "LISTENHUB_API_KEY": os.environ.get("LISTENHUB_API_KEY") or "injected-by-agent-proxy"}
+        cmd = LISTENHUB + ["openapi", "tts", "--text", line["tts"], "--voice", voice, "--output", str(tmp), "--format", "mp3"]
         if speed != 1.0:
             cmd += ["--speed", str(speed)]
-        run(cmd)
+        try:
+            run(cmd, env=env)
+        except subprocess.CalledProcessError as e:
+            tmp.unlink(missing_ok=True)
+            raise SystemExit(f"{lid}: ListenHub 调用失败。\n{(e.stderr or e.stdout).strip()[-800:]}\n"
+                             "检查：环境的 API credentials 是否配了 api.marswave.ai，或设置 LISTENHUB_API_KEY；"
+                             "云端不通时用 --mac-script 在 Mac 上生成。")
     else:
-        out = raw_dir / f"{lid}.wav"
-        run(HF + ["tts", line["tts"], "-v", voice, "-s", str(speed), "-o", str(out)])
+        run(HF + ["tts", line["tts"], "-v", voice, "-s", str(speed), "-o", str(tmp)])
+    for p in (existing if force else ours):
+        p.unlink(missing_ok=True)
+    tmp.rename(out)
     manifest[lid] = {"fp": fp, "file": out.name, "sha": file_hash(out)}
     return out
 

@@ -7,6 +7,8 @@
 - `hello-explainer/`：31 秒带配音字幕的最小闭环样例，用来验证环境，不涉及真实选题。
 - `tools/narrate.py`：逐句配音 → 去首尾静音 → 量真实时长 → 生成字幕、`.srt` 和 `index.html`（由 `index.html.tpl` 套模板）。
 - `tools/finalize.py`：成片两遍 loudnorm 到 -16 LUFS。
+- `tools/hf`：HyperFrames 包装，自动找到云端预装的 headless shell，不需要设 `HYPERFRAMES_BROWSER_PATH`。
+- `tools/cloud-setup.sh`：云端环境的 Setup script（装中文字体、预热 npx 缓存）。
 
 ## 制作流程
 
@@ -14,8 +16,8 @@
 # 1. 改解说词：<项目>/narration.json（tts 用读法写数字，sub 用阿拉伯数字；marks 是要对齐画面动作的关键词）
 # 2. 改画面：<项目>/index.html.tpl（用 T.L02.start / T.L02.marks[i] 安排动画，不写死秒数）
 python3 tools/narrate.py hello-explainer            # 只重配文本/音色变了的句子；--force L02 强制重配
-cd hello-explainer && npx -y hyperframes@0.8.114 check
-npx -y hyperframes@0.8.114 render --output out/vo.mp4
+cd hello-explainer && ../tools/hf check
+../tools/hf render --output out/vo.mp4
 python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
 ```
 
@@ -24,9 +26,9 @@ python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
 `narration.json` 里设 `"engine": "listenhub"`，`"voice"` 填 speakerId（克隆音色 `voice-clone-69539213672c8112766c3f4a`）。
 
 **云端直接生成**（推荐，配一次以后都不用碰 Mac）：
-1. 环境设置 → Network access 选 Custom，Allowed domains 加 `api.marswave.ai`（保留默认包管理器列表）
-2. 环境设置里加环境变量 `LISTENHUB_API_KEY`
-3. 新开会话后 `python3 tools/narrate.py <项目>` 会逐句调用 ListenHub
+环境设置的 **API credentials** 里加一条：Allowed websites `api.marswave.ai`，Header `Authorization` / Prefix `Bearer` / Value 填 Key。
+真实 Key 由平台代理在请求离开容器后加上，会话里看不到；narrate.py 在没有 `LISTENHUB_API_KEY` 时给 CLI 填占位值。
+没有 API credentials 的套餐改为在环境变量里设 `LISTENHUB_API_KEY`。
 
 **Mac 兜底**：`python3 tools/narrate.py <项目> --mac-script` 生成 `audio/listenhub_tts.command`，
 在 Mac 上双击逐句生成 mp3 到 `audio/raw/`，传回仓库后重新运行 narrate.py。
@@ -38,19 +40,9 @@ python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
 
 ## 云端环境要点（已验证）
 
-```bash
-# 1. 中文字体（不装的话中文会渲染成方框）
-apt-get install -y fonts-noto-cjk
-
-# 2. 用预装的 headless shell 渲染，不用 `hyperframes browser ensure` 去下载
-export HYPERFRAMES_BROWSER_PATH=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell
-
-# 3. 检查 + 渲染（必须在前台跑）
-cd hello-explainer
-npx -y hyperframes@0.8.114 check
-npx -y hyperframes@0.8.114 render --output out/hello-explainer.mp4
-```
-
+- 环境的 Setup script 用 `tools/cloud-setup.sh` 的内容（中文字体 `fonts-noto-cjk`，不装的话中文会渲染成方框）。
+  没配 Setup script 的环境，先手动跑一次 `bash tools/cloud-setup.sh`。
+- 检查和渲染用 `tools/hf`（自动找预装浏览器），渲染必须在前台跑。
 - GSAP 已放在 `assets/gsap.min.js`，不走 CDN（渲染用的 Chromium 不走代理）。
 - 实测速度：31 秒 1080p30 带音频渲染约 53 秒（4 核）。
 - 云端连不上 huggingface.co（网络策略），Whisper 模型下载不了，暂时没法做语音转写回检。

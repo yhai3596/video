@@ -1,0 +1,8 @@
+#!/bin/bash
+# HyperFrames 包装：自动找到云端预装的 headless shell（版本号变了也能找到），再调用固定版本的 CLI
+if [ -z "$HYPERFRAMES_BROWSER_PATH" ]; then
+  for p in /opt/pw-browsers/chromium_headless_shell-*/chrome-linux/headless_shell; do
+    [ -x "$p" ] && export HYPERFRAMES_BROWSER_PATH="$p"
+  done
+fi
+exec npx -y hyperframes@0.8.114 "$@"
