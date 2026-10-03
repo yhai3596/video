@@ -1,6 +1,6 @@
 {
-  "engine": "kokoro",
-  "voice": "zf_xiaobei",
+  "engine": "listenhub",
+  "voice": "voice-clone-69539213672c8112766c3f4a",
   "speed": 1.0,
   "lines": [
     {

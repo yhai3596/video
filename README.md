@@ -4,7 +4,7 @@
 
 ## 项目
 
-- `hello-explainer/`：31 秒带配音字幕的最小闭环样例，用来验证环境，不涉及真实选题。
+- `hello-explainer/`：26 秒带 ListenHub 克隆音色配音和字幕的最小闭环样例，用来验证环境，不涉及真实选题。
 - `tools/narrate.py`：逐句配音 → 去首尾静音 → 量真实时长 → 生成字幕、`.srt` 和 `index.html`（由 `index.html.tpl` 套模板）。
 - `tools/finalize.py`：成片两遍 loudnorm 到 -16 LUFS。
 - `tools/hf`：HyperFrames 包装，自动找到云端预装的 headless shell，不需要设 `HYPERFRAMES_BROWSER_PATH`。
@@ -45,5 +45,5 @@ python3 ../tools/finalize.py out/vo.mp4 out/final.mp4
   没配 Setup script 的环境，先手动跑一次 `bash tools/cloud-setup.sh`。
 - 检查和渲染用 `tools/hf`（自动找预装浏览器），渲染必须在前台跑。
 - GSAP 已放在 `assets/gsap.min.js`，不走 CDN（渲染用的 Chromium 不走代理）。
-- 实测速度：31 秒 1080p30 带音频渲染约 53 秒（4 核）。
+- 实测速度：26 秒 1080p30 带音频渲染约 28 秒（4 核）。
 - 云端连不上 huggingface.co（网络策略），Whisper 模型下载不了，暂时没法做语音转写回检。
