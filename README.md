@@ -2,7 +2,7 @@
 
 用 Claude + HyperFrames 做知识解说视频（代码即视频：HTML + GSAP → 逐帧截图 → MP4）。
 
-**新会话从 `CLAUDE.md` 开始**：完整流程、环境要求、踩过的坑、命令速查都在那里，Claude Code 打开仓库会自动读取。
+**新会话从 `CLAUDE.md` 开始**；给其他 agent 复用这套方法用 `docs/video-agent-prompt.md`。完整流程、环境要求、踩过的坑、命令速查都在那里，Claude Code 打开仓库会自动读取。
 
 ## 项目
 
